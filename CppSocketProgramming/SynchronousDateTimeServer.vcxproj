@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <Import Project="build-settings\ProjectConfigurations.props" />
+  <PropertyGroup Label="Globals">
+    <VCProjectVersion>17.0</VCProjectVersion>
+    <ProjectGuid>{3A970E35-637B-40E7-830F-7FE70499A570}</ProjectGuid>
+    <RootNamespace>SynchronousDateTimeServer</RootNamespace>
+    <ApplicationGroup>synchronous-date-time</ApplicationGroup>
+    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+  </PropertyGroup>
+  <Import Project="build-settings\ApplicationProject.props" />
+</Project>

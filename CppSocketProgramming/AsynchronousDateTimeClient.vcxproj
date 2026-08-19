@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <Import Project="build-settings\ProjectConfigurations.props" />
+  <PropertyGroup Label="Globals">
+    <VCProjectVersion>17.0</VCProjectVersion>
+    <ProjectGuid>{66C429FB-3B0B-4742-8176-D5ABFC55AB9A}</ProjectGuid>
+    <RootNamespace>AsynchronousDateTimeClient</RootNamespace>
+    <ApplicationGroup>asynchronous-date-time</ApplicationGroup>
+    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+  </PropertyGroup>
+  <Import Project="build-settings\ApplicationProject.props" />
+</Project>
