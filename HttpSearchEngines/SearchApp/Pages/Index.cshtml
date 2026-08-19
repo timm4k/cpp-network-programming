@@ -1,0 +1,133 @@
+@page
+@model IndexModel
+@{
+    Layout = null;
+}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>HTTP Search Engines</title>
+    <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+</head>
+<body data-active-tab="@Model.ActiveTab">
+    <div class="ambient ambient-one"></div>
+    <div class="ambient ambient-two"></div>
+
+    <header class="hero">
+        <div>
+            <span class="eyebrow">C# · ASP.NET Core · JSON API</span>
+            <h1>HTTP Search Engines</h1>
+            <p>Search text and images across multiple sources</p>
+        </div>
+        <div class="status-badge"><span></span>HTTP services online</div>
+    </header>
+
+    <main class="shell">
+        <nav class="tabs" aria-label="Search mode">
+            <button class="tab-button" type="button" data-tab-target="text">Text search</button>
+            <button class="tab-button" type="button" data-tab-target="images">Image search</button>
+        </nav>
+
+        <section class="tab-panel" data-tab-panel="text">
+            <form method="post" asp-page-handler="Text" class="search-form">
+                <div class="search-row">
+                    <label class="query-field">
+                        <span>What do you want to find</span>
+                        <input asp-for="TextQuery" maxlength="200" placeholder="Try spider man or socket programming" autocomplete="off" />
+                    </label>
+                    <button class="primary-button" type="submit">Search</button>
+                </div>
+
+                <fieldset class="provider-group">
+                    <legend>Search engines</legend>
+                    <div class="provider-options">
+                        @foreach (string provider in Model.TextProviderNames)
+                        {
+                            <label class="provider-option">
+                                <input type="checkbox"
+                                       name="SelectedTextProviders"
+                                       value="@provider"
+                                       checked="@Model.SelectedTextProviders.Contains(provider)" />
+                                <span>@provider</span>
+                            </label>
+                        }
+                    </div>
+                </fieldset>
+            </form>
+
+            @if (!string.IsNullOrWhiteSpace(Model.TextStatus))
+            {
+                <p class="result-status">@Model.TextStatus</p>
+            }
+
+            <div class="text-results">
+                @foreach (TextSearchResult result in Model.TextResults)
+                {
+                    <article class="text-card">
+                        <div>
+                            <span class="provider-label">@result.Provider</span>
+                            <h2>@result.Title</h2>
+                            <p>@result.Description</p>
+                        </div>
+                        <a class="secondary-button" href="@result.PageUrl" target="_blank" rel="noopener noreferrer">Open</a>
+                    </article>
+                }
+            </div>
+        </section>
+
+        <section class="tab-panel" data-tab-panel="images">
+            <form method="post" asp-page-handler="Images" class="search-form">
+                <div class="search-row">
+                    <label class="query-field">
+                        <span>What images do you want to find</span>
+                        <input asp-for="ImageQuery" maxlength="200" placeholder="Try purple nebula or network programming" autocomplete="off" />
+                    </label>
+                    <button class="primary-button" type="submit">Search images</button>
+                </div>
+
+                <fieldset class="provider-group">
+                    <legend>Image search engines</legend>
+                    <div class="provider-options">
+                        @foreach (string provider in Model.ImageProviderNames)
+                        {
+                            <label class="provider-option">
+                                <input type="checkbox"
+                                       name="SelectedImageProviders"
+                                       value="@provider"
+                                       checked="@Model.SelectedImageProviders.Contains(provider)" />
+                                <span>@provider</span>
+                            </label>
+                        }
+                    </div>
+                </fieldset>
+            </form>
+
+            @if (!string.IsNullOrWhiteSpace(Model.ImageStatus))
+            {
+                <p class="result-status">@Model.ImageStatus</p>
+            }
+
+            <div class="image-results">
+                @foreach (ImageSearchResult result in Model.ImageResults)
+                {
+                    <article class="image-card">
+                        <a class="image-frame" href="@result.PageUrl" target="_blank" rel="noopener noreferrer">
+                            <img src="@result.ThumbnailUrl" alt="@result.Title" loading="lazy" />
+                        </a>
+                        <div class="image-content">
+                            <span class="provider-label">@result.Provider</span>
+                            <h2>@result.Title</h2>
+                            <p>@result.Attribution</p>
+                            <a class="secondary-button" href="@result.PageUrl" target="_blank" rel="noopener noreferrer">Open source</a>
+                        </div>
+                    </article>
+                }
+            </div>
+        </section>
+    </main>
+
+    <script src="~/js/site.js" asp-append-version="true"></script>
+</body>
+</html>
