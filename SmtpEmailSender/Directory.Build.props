@@ -1,0 +1,6 @@
+<Project>
+  <PropertyGroup>
+    <BaseOutputPath>$(LOCALAPPDATA)\SmtpEmailSenderBuild\bin\</BaseOutputPath>
+    <BaseIntermediateOutputPath>$(LOCALAPPDATA)\SmtpEmailSenderBuild\obj\$(MSBuildProjectName)\</BaseIntermediateOutputPath>
+  </PropertyGroup>
+</Project>
