@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NetworkChat</title>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+    <div id="app">
+        <div id="auth-panel">
+            <div id="auth-box">
+                <h1>Welcome back!</h1>
+                <div class="subtitle">We're so excited to see you again!</div>
+                <div id="login-form">
+                    <label>Nickname</label>
+                    <input type="text" id="login-input" autocomplete="off">
+                    <label>Password</label>
+                    <input type="password" id="password-input">
+                    <button id="login-btn">Log In</button>
+                    <button id="show-register-btn">Need an account? Register</button>
+                </div>
+                <div id="register-form" style="display:none;">
+                    <label>Nickname</label>
+                    <input type="text" id="reg-login-input" autocomplete="off">
+                    <label>Password</label>
+                    <input type="password" id="reg-password-input">
+                    <button id="register-btn">Continue</button>
+                    <button id="show-login-btn">Already have an account?</button>
+                </div>
+                <div id="auth-error" class="error"></div>
+            </div>
+        </div>
+
+        <div id="chat-panel" style="display:none;">
+            <div id="sidebar">
+                <div id="sidebar-header">NetworkChat</div>
+                <div id="channels">
+                    <div class="channel-category">Channels</div>
+                    <ul id="room-list"></ul>
+                    <button id="create-room-btn">+ Create Room</button>
+                </div>
+                <div id="user-panel">
+                    <div class="user-avatar" id="user-avatar"></div>
+                    <div class="user-info">
+                        <div class="name" id="current-user"></div>
+                        <div class="status">Online</div>
+                    </div>
+                    <button id="logout-btn" title="Log out">&#x23FB;</button>
+                </div>
+            </div>
+            <div id="chat-area">
+                <div id="room-header">
+                    <span class="hash">#</span>
+                    <span id="current-room">general</span>
+                    <div class="header-divider"></div>
+                    <button id="leave-room-btn">Leave</button>
+                </div>
+                <div id="messages"></div>
+                <div id="input-area">
+                    <div class="input-wrapper">
+                        <input type="text" id="msg-input" placeholder="Message #general" autocomplete="off">
+                        <button id="send-btn">&#x27A4;</button>
+                    </div>
+                </div>
+            </div>
+            <div id="members">
+                <h3>Online</h3>
+                <ul id="user-list"></ul>
+                <div id="admin-panel" style="display:none;">
+                    <h3>Admin</h3>
+                    <button id="ban-user-btn">&#x1F6AB; Ban User</button>
+                    <button id="delete-user-btn">&#x1F5D1; Delete User</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script>
+(function() {
+    var MT = { Chat:0, Private:1, System:2, Login:3, Register:5,
+        RoomCreate:6, RoomJoin:7, RoomLeave:8, RoomList:9, UserList:10,
+        AdminDeleteUser:11, AdminBanUser:12,
+        AdminCensorAlert:14, Error:15 };
+
+    var ws = null;
+    var currentUser = '';
+    var currentRoom = 'general';
+    var isAdmin = false;
+    var queue = [];
+    var userColors = {};
+    var palette = [
+        '#b8a9d4','#a3c9a8','#d4b896','#cfa0b5','#8fb8de',
+        '#d4c07a','#9cc3e5','#dba8d4','#aed4a2','#d4b8d0',
+        '#d4bfa0','#a8cce8','#e0a8ae','#b8d4b8','#c8b8e0',
+        '#b0b8c4','#e0d48a','#9eaab8','#d4cc80','#d4a0a0'
+    ];
+
+    function userColor(name) {
+        if (userColors[name]) return userColors[name];
+        var h = 0;
+        for (var i = 0; i < name.length; i++) h = ((h << 5) - h + name.charCodeAt(i)) | 0;
+        userColors[name] = palette[Math.abs(h) % palette.length];
+        return userColors[name];
+    }
+
+    function $(id) { return document.getElementById(id); }
+
+    function openSocket() {
+        if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) return;
+        var proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+        ws = new WebSocket(proto + '//' + location.host + '/ws');
+        ws.onopen = function() {
+            console.log('[WS] open');
+            while (queue.length > 0) {
+                var msg = queue.shift();
+                console.log('[WS] sending queued:', msg);
+                ws.send(msg);
+            }
+        };
+        ws.onmessage = function(e) {
+            console.log('[WS] recv:', e.data);
+            try { onMessage(JSON.parse(e.data)); } catch(err) { console.error(err); }
+        };
+        ws.onclose = function() {
+            console.log('[WS] closed, reconnecting...');
+            ws = null;
+            setTimeout(openSocket, 1000);
+        };
+        ws.onerror = function(e) { console.error('[WS] error', e); };
+    }
+
+    function send(obj) {
+        var json = JSON.stringify(obj);
+        console.log('[SEND]', json);
+        if (ws && ws.readyState === WebSocket.OPEN) {
+            ws.send(json);
+        } else {
+            queue.push(json);
+            openSocket();
+        }
+    }
+
+    function onMessage(msg) {
+        console.log('[MSG] type=' + msg.type, msg);
+        if (msg.type === MT.Login) {
+            currentUser = msg.content;
+            isAdmin = (msg.target === 'admin');
+            $('auth-panel').style.display = 'none';
+            $('chat-panel').style.display = 'flex';
+            $('current-user').textContent = currentUser;
+            $('user-avatar').textContent = currentUser[0].toUpperCase();
+            $('admin-panel').style.display = isAdmin ? 'block' : 'none';
+            send({ type: MT.RoomList, sender: currentUser });
+            send({ type: MT.UserList, sender: currentUser });
+        } else if (msg.type === MT.Register) {
+            $('auth-error').textContent = 'Account created!';
+            $('auth-error').style.color = '#22c55e';
+            $('register-form').style.display = 'none';
+            $('login-form').style.display = 'block';
+            $('login-input').value = $('reg-login-input').value;
+            $('password-input').value = $('reg-password-input').value;
+            $('reg-login-input').value = '';
+            $('reg-password-input').value = '';
+        } else if (msg.type === MT.Error) {
+            $('auth-error').textContent = msg.content;
+            $('auth-error').style.color = '#ef4444';
+            if ($('chat-panel').style.display === 'flex') {
+                addSystem(msg.content);
+            }
+        } else if (msg.type === MT.Chat) {
+            addChatMsg(msg);
+        } else if (msg.type === MT.Private) {
+            addPrivateMsg(msg);
+        } else if (msg.type === MT.System) {
+            addSystem(msg.content);
+        } else if (msg.type === MT.RoomList) {
+            renderRooms(msg.content.split(',').filter(Boolean));
+        } else if (msg.type === MT.UserList) {
+            renderUsers(msg.content.split(',').filter(Boolean));
+        }
+    }
+
+    function addChatMsg(msg) {
+        var div = document.createElement('div');
+        div.className = 'message ' + (msg.sender === currentUser ? 'own' : 'other');
+        var header = document.createElement('div');
+        header.className = 'msg-header';
+        var s = document.createElement('span');
+        s.className = 'sender';
+        s.textContent = msg.sender;
+        s.style.color = userColor(msg.sender);
+        var t = document.createElement('span');
+        t.className = 'timestamp';
+        t.textContent = new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+        header.appendChild(s);
+        header.appendChild(t);
+        var b = document.createElement('div');
+        b.className = 'content';
+        b.textContent = msg.content;
+        div.appendChild(header);
+        div.appendChild(b);
+        $('messages').appendChild(div);
+        $('messages').scrollTop = $('messages').scrollHeight;
+    }
+
+    function addPrivateMsg(msg) {
+        var isOwn = msg.sender === currentUser;
+        var div = document.createElement('div');
+        div.className = 'message private ' + (isOwn ? 'own' : 'other');
+        var header = document.createElement('div');
+        header.className = 'msg-header';
+        var s = document.createElement('span');
+        s.className = 'sender';
+        s.textContent = isOwn ? ('To ' + msg.target) : ('From ' + msg.sender);
+        s.style.color = isOwn ? '#ba9a6c' : userColor(msg.sender);
+        var t = document.createElement('span');
+        t.className = 'timestamp';
+        t.textContent = new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+        header.appendChild(s);
+        header.appendChild(t);
+        var b = document.createElement('div');
+        b.className = 'content';
+        b.textContent = msg.content;
+        div.appendChild(header);
+        div.appendChild(b);
+        $('messages').appendChild(div);
+        $('messages').scrollTop = $('messages').scrollHeight;
+    }
+
+    function addSystem(text) {
+        var div = document.createElement('div');
+        div.className = 'message system';
+        div.textContent = text;
+        $('messages').appendChild(div);
+        $('messages').scrollTop = $('messages').scrollHeight;
+    }
+
+    function renderRooms(rooms) {
+        var list = $('room-list');
+        list.innerHTML = '';
+        rooms.forEach(function(r) {
+            var li = document.createElement('li');
+            li.textContent = r;
+            if (r === currentRoom) li.className = 'active';
+            li.onclick = function() { joinRoom(r); };
+            list.appendChild(li);
+        });
+    }
+
+    function renderUsers(users) {
+        var list = $('user-list');
+        list.innerHTML = '';
+        users.forEach(function(u) {
+            var li = document.createElement('li');
+            var dot = document.createElement('span');
+            dot.className = 'user-dot';
+            var name = document.createElement('span');
+            name.textContent = u;
+            if (u === currentUser) name.style.color = '#f2f3f5';
+            li.appendChild(dot);
+            li.appendChild(name);
+            list.appendChild(li);
+        });
+    }
+
+    function joinRoom(name) {
+        if (name === currentRoom) return;
+        send({ type: MT.RoomLeave, content: currentRoom, sender: currentUser });
+        currentRoom = name;
+        send({ type: MT.RoomJoin, content: currentRoom, sender: currentUser });
+        $('current-room').textContent = currentRoom;
+        $('msg-input').placeholder = 'Message #' + currentRoom;
+        $('messages').innerHTML = '';
+        addSystem('Joined room: ' + currentRoom);
+        send({ type: MT.RoomList, sender: currentUser });
+    }
+
+    function sendMessage() {
+        var text = $('msg-input').value.trim();
+        if (!text) return;
+        $('msg-input').value = '';
+        if (text.indexOf('/w ') === 0 || text.indexOf('/pm ') === 0) {
+            var parts = text.split(' ');
+            if (parts.length >= 3) {
+                send({ type: MT.Private, content: parts.slice(2).join(' '), sender: currentUser, target: parts[1] });
+            }
+            return;
+        }
+        send({ type: MT.Chat, content: text, sender: currentUser, room: currentRoom });
+    }
+
+    $('login-btn').onclick = function() {
+        var l = $('login-input').value.trim();
+        var p = $('password-input').value;
+        if (!l || !p) { $('auth-error').textContent = 'Fill in all fields'; $('auth-error').style.color = '#ef4444'; return; }
+        $('auth-error').textContent = '';
+        send({ type: MT.Login, content: l + '|' + p, sender: '' });
+    };
+
+    $('register-btn').onclick = function() {
+        var l = $('reg-login-input').value.trim();
+        var p = $('reg-password-input').value;
+        if (!l || !p) { $('auth-error').textContent = 'Fill in all fields'; $('auth-error').style.color = '#ef4444'; return; }
+        $('auth-error').textContent = '';
+        send({ type: MT.Register, content: l + '|' + p, sender: '' });
+    };
+
+    $('show-register-btn').onclick = function() {
+        $('login-form').style.display = 'none';
+        $('register-form').style.display = 'block';
+        $('auth-error').textContent = '';
+    };
+    $('show-login-btn').onclick = function() {
+        $('register-form').style.display = 'none';
+        $('login-form').style.display = 'block';
+        $('auth-error').textContent = '';
+    };
+
+    $('login-input').onkeydown = function(e) { if (e.key === 'Enter') $('login-btn').click(); };
+    $('password-input').onkeydown = function(e) { if (e.key === 'Enter') $('login-btn').click(); };
+    $('reg-login-input').onkeydown = function(e) { if (e.key === 'Enter') $('register-btn').click(); };
+    $('reg-password-input').onkeydown = function(e) { if (e.key === 'Enter') $('register-btn').click(); };
+    $('msg-input').onkeydown = function(e) { if (e.key === 'Enter') sendMessage(); };
+    $('send-btn').onclick = sendMessage;
+
+    $('create-room-btn').onclick = function() {
+        var name = prompt('Room name:');
+        if (name && name.trim()) send({ type: MT.RoomCreate, content: name.trim(), sender: currentUser });
+    };
+    $('leave-room-btn').onclick = function() {
+        if (currentRoom === 'general') return;
+        send({ type: MT.RoomLeave, content: currentRoom, sender: currentUser });
+        currentRoom = 'general';
+        send({ type: MT.RoomJoin, content: 'general', sender: currentUser });
+        $('current-room').textContent = 'general';
+        $('msg-input').placeholder = 'Message #general';
+        $('messages').innerHTML = '';
+        addSystem('Joined room: general');
+        send({ type: MT.RoomList, sender: currentUser });
+    };
+
+    $('ban-user-btn').onclick = function() {
+        var user = prompt('User to ban:');
+        if (!user) return;
+        var reason = prompt('Reason:');
+        if (!reason) return;
+        var mins = prompt('Minutes:');
+        if (!mins) return;
+        send({ type: MT.AdminBanUser, content: reason + '|' + mins, sender: currentUser, target: user });
+    };
+    $('delete-user-btn').onclick = function() {
+        var user = prompt('User to delete:');
+        if (!user) return;
+        if (!confirm('Delete "' + user + '"?')) return;
+        send({ type: MT.AdminDeleteUser, sender: currentUser, target: user });
+    };
+
+    $('logout-btn').onclick = function() {
+        if (!confirm('Are you sure you want to log out?')) return;
+        if (ws) ws.close();
+        ws = null;
+        currentUser = '';
+        currentRoom = 'general';
+        isAdmin = false;
+        $('chat-panel').style.display = 'none';
+        $('auth-panel').style.display = 'flex';
+        $('auth-error').textContent = '';
+        $('messages').innerHTML = '';
+        $('login-input').value = '';
+        $('password-input').value = '';
+    };
+
+    openSocket();
+})();
+    </script>
+</body>
+</html>

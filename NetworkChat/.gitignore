@@ -1,0 +1,9 @@
+.vs/
+**/bin/
+**/obj/
+data/
+*.pfx
+
+*.user
+*.suo
+*.log
